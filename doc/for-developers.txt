@@ -50,7 +50,6 @@ the program options.
 
 Abcm2psSettingsFrame (Dialog) (ABC Settings)
 ErrorFrame (Dialog)
-IncipitsFrame (Dialog)
 MidiSettingsFrame (Dialog)
 MidiOptionsFrame (Dialog)
 NewTuneFrame (Dialog)

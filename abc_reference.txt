@@ -1,3 +1,4 @@
+% This is a source file -- easyABC reads this to create the interactive help panel
 A.2 ABC Fields
 Field Where Notes and Example
 A: header Area.  A:Liverpool

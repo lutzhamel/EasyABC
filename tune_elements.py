@@ -727,8 +727,8 @@ class AbcBeam(AbcElement):
 class AbcEmptyDocument(AbcElement):
     pattern = r'^$'
     def __init__(self):
-        super(AbcEmptyDocument, self).__init__('empty_document', display_name=_('Welcome to EasyABC'),
-            description=_('Creating an abc-file from scratch can be difficult. This assist panel tries to help by providing hints and actions. But remember, typing is usually faster.'))
+        super(AbcEmptyDocument, self).__init__('empty_document', display_name=_(''),
+            description=_('This panel provides context-sensitive ABC hints and actions.'))
         for section in ABC_SECTIONS:
             self._search_pattern[section] = AbcEmptyLine.pattern
         self.tune_scope = TuneScope.FullText
@@ -1081,7 +1081,7 @@ class AbcStructure(object):
     @staticmethod
     def get_sections(cwd):
         # [1.3.6.2 [JWDJ] bugfix This fixes 'str>ng' in Fields and Command Reference
-        reference_content = io.open(os.path.join(cwd, 'reference.txt'), 'r', encoding='latin-1').read()
+        reference_content = io.open(os.path.join(cwd, 'abc_reference.txt'), 'r', encoding='latin-1').read()
         if AbcStructure.replace_regexes is None:
             AbcStructure.replace_regexes = [
                 (re.compile(r'\bh((?:bass/chord|length|logical|string|int|fl-?\n?oat\s?|command|str|text|vol|h|n|char|clef|bass|chord)\d*\s?(?: (?:string|int|float)\d*?)*)i\b'), r'<\1>'),  # enclose types with < and >

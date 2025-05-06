@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
-program_version = '1.3.8.7'
-program_name = 'EasyABC ' + program_version
+program_version = '0.0.1'
+#lhh program_name = 'EasyABCLite ' + program_version
+program_name = 'EasyABCLite'
 
 # Copyright (C) 2011-2014 Nils Liberg (mail: kotorinl at yahoo.co.uk)
 # Copyright (C) 2015-2024 Seymour Shlien (mail: fy733@ncf.ca), Jan Wybren de Jong (jw_de_jong at yahoo dot com)
+# Copyright (C) 2025- Lutz Hamel (mail: lutz.hamel@gmail.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
@@ -103,21 +105,15 @@ from wx.lib.embeddedimage import PyEmbeddedImage
 from wx import GetTranslation as _
 from wxhelper import *
 # from midiplayer import *
-try:
-    from fluidsynthplayer import *
-    fluidsynth_available = True
-except ImportError:
-    sys.stderr.write('Warning: FluidSynth library not found. Playing using a SoundFont (.sf2) is disabled.\n')
-    # sys.stderr.write(traceback.format_exc())
-    fluidsynth_available = False
+    
 
 #FAU:MIDIPLAY: On Mac, it is possible to interface directly to the Midi syntethiser of mac OS via mplay: https://github.com/jheinen/mplay
 # An adaptation is done to integrate with EasyABC
 if wx.Platform == "__WXMAC__":
     from mplaysmfplayer import *
     
-from xml2abc_interface import xml_to_abc, abc_to_xml
-from midi2abc import midi_to_abc, Note, duration2abc
+#lhh from xml2abc_interface import xml_to_abc, abc_to_xml
+#lhh from midi2abc import midi_to_abc, Note, duration2abc
 from generalmidi import general_midi_instruments
 from abc_styler import ABCStyler
 from abc_character_encoding import decode_abc, abc_text_to_unicode, get_encoding_abc
@@ -423,7 +419,8 @@ def get_default_path_for_executable(name):
         exe_name = name
 
     path = os.path.join(cwd, 'bin', exe_name)
-    if wx.Platform == "__WXGTK__":
+
+    if wx.Platform == "__WXGTK__" or wx.Platform == "__WXMAC__":
         if not os.path.exists(path):
             path = '/usr/local/bin/{0}'.format(name)
         if not os.path.exists(path):
@@ -935,30 +932,6 @@ def AbcToAbc(abc_code, cache_dir, params, abc2abc_path=None):
         return stdout_value, stderr_value
     else:
         return None, stderr_value
-
-# 1.3.6.4 [SS] 2015-06-22
-def MidiToMftext(midi2abc_path, midifile):
-    ' dissasemble midi file to text using midi2abc'
-    global execmessages
-    cmd1 = [midi2abc_path, midifile, '-mftext']
-    execmessages += '\nMidiToMftext\n' + " ".join(cmd1)
-
-    if os.path.exists(midi2abc_path):
-        stdout_value, stderr_value, returncode = get_output_from_process(cmd1, bufsize=-1)
-        midiframe = MyMidiTextTree(_('Disassembled Midi File'))
-        midiframe.Show(True)
-        midi_data = stdout_value
-        midi_lines = midi_data.splitlines()
-        midiframe.LoadMidiData(midi_lines)
-    else:
-        wx.MessageBox(_("Cannot find the executable midi2abc. Be sure it is in your bin folder and its path is defined in ABC Setup/File Settings."), _("Error"), wx.ICON_ERROR | wx.OK)
-
-def get_midi_structure_as_text(midi2abc_path, midi_file):
-    result = u''
-    if os.path.exists(midi2abc_path):
-        cmd = [midi2abc_path, midi_file, '-mftext']
-        result, stderr_value, returncode = get_output_from_process(cmd, bufsize=-1)
-    return result
 
 # p09 2014-10-14 2014-12-17 2015-01-28 [SS]
 def AbcToPDF(settings, abc_code, header, cache_dir, extra_params='', abcm2ps_path=None, gs_path=None, abcm2ps_format_path=None, generate_toc=False):
@@ -1498,36 +1471,9 @@ def change_texts_into_chords(abc):
     optional_chord_type = '(%s)?' % '|'.join(re.escape(c) for c in chord_types)
     return re.sub(r'(?<!\\)"[^_]([A-G][#b]? ?%s)(?<!\\)"' % optional_chord_type, r'"\1"', abc)
 
-def NWCToXml(filepath, cache_dir, nwc2xml_path):
-    global execmessages
-    nwc_file_path = os.path.join(cache_dir, 'temp_nwc.nwc')
-    xml_file_path = os.path.join(cache_dir, 'temp_nwc.xml')
-    if os.path.exists(xml_file_path):
-        os.remove(xml_file_path)
-    shutil.copy(filepath, nwc_file_path)
-
-    if not nwc2xml_path:
-        if wx.Platform == "__WXMSW__":
-            nwc2xml_path = os.path.join(cwd, 'bin', 'nwc2xml.exe')
-        elif wx.Platform == "__WXMAC__":
-            nwc2xml_path = os.path.join(cwd, 'bin', 'nwc2xml')
-        else:
-            nwc2xml_path = 'nwc2xml'
-
-    #cmd = [nwc2xml_path, '--charset=ISO-8859-1', nwc_file_path]
-    cmd = [nwc2xml_path, nwc_file_path]
-    stdout_value, stderr_value, returncode = get_output_from_process(cmd)
-    if returncode < 0:
-        execmessages += '\n' + _('%(program)s exited abnormally (errorcode %(error)#8x)') % {'program': 'Nwc2xml', 'error': returncode & 0xffffffff}
-
-    if not os.path.exists(xml_file_path) or returncode != 0:
-        stderr_value = stderr_value.replace(os.path.dirname(nwc_file_path) + os.sep, '')  # simply any reference to the file path in the error message
-        raise NWCConversionException(_('Error during conversion of %(filename)s: %(error)s' % {'filename': os.path.basename(filepath), 'error': stderr_value}))
-    return xml_file_path
-
-
 myRECORDSTOP = wx.NewEventType()
 EVT_RECORDSTOP = wx.PyEventBinder(myRECORDSTOP, 1)
+
 class RecordStopEvent(wx.PyCommandEvent):
     def __init__(self, eid, value=None):
         wx.PyCommandEvent.__init__(self, myRECORDSTOP, eid)
@@ -1764,179 +1710,6 @@ class MidiThread(threading.Thread):
         return self.__is_busy
 
 
-class RecordThread(threading.Thread):
-    def __init__(self, notify_window, midi_in_device_ID, midi_out_device_ID=None, metre_1=3, metre_2=4, bpm=70):
-        global gmidi_in
-        threading.Thread.__init__(self)
-        self._notify_window = notify_window
-        self._want_abort = 0
-        self.bpm = bpm
-        self.metre_1 = metre_1
-        self.metre_2 = metre_2
-        self.midi_in = pypm.Input(midi_in_device_ID)
-        if midi_out_device_ID is None:
-            self.midi_out = None
-        else:
-            self.midi_out = pypm.Output(midi_out_device_ID, 0)
-        gmidi_in.append(self.midi_in)
-        gmidi_in.append(self.midi_out)
-        self.notes = []
-        self.is_running = False
-        self.tick1 = wx_sound(os.path.join(cwd, 'sound', 'tick1.wav'))
-        self.tick2 = wx_sound(os.path.join(cwd, 'sound', 'tick2.wav'))
-
-    def timedelta_microseconds(self, td):
-        return td.seconds*1000000 + td.microseconds
-
-    @property
-    def beat_duration(self):
-        return 1000000 * 60 / self.bpm  # unit is microseconds
-
-    @property
-    def midi_in_poll(self):
-        if wx.Platform == "__WXMAC__":
-            return self.midi_in.poll()
-        else:
-            return self.midi_in.Poll()
-
-    def number_to_note(self, number):
-        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
-        return notes[number%12]
-
-
-    def run(self):
-        self.is_running = True
-        NOTE_ON = 0x09
-        NOTE_OFF = 0x08
-        i = 0
-        noteon_time = {}
-        start_time = datetime.now()
-        last_tick = datetime.now()
-        wx.CallAfter(self.tick1.Play)
-        time.sleep(0.002)
-        try:
-            while not self._want_abort:
-                while not self.midi_in_poll and not self._want_abort:
-                    time.sleep(0.00025)
-                    if self.timedelta_microseconds(datetime.now() - start_time) / self.beat_duration > i:
-                        last_tick = datetime.now()
-                        if i % self.metre_1 == 0:
-                            wx.CallAfter(self.tick1.Play)
-                        else:
-                            wx.CallAfter(self.tick2.Play)
-                        i += 1 #FAU: 20210102: One tick was missing the first time so incrementing i after the tick
-
-                time_offset = self.timedelta_microseconds(datetime.now() - start_time)
-                if self.midi_in_poll:
-                    if wx.Platform == "__WXMAC__":
-                        data = self.midi_in.read(1)
-                    else:
-                        data = self.midi_in.Read(1) # read only 1 message at a time
-                    if self.midi_out is not None:
-                        if wx.Platform == "__WXMAC__":
-                            self.midi_out.write(data)
-                        else:
-                            self.midi_out.Write(data)
-                    cmd = data[0][0][0] >> 4
-                    midi_note = data[0][0][1]
-                    midi_note_velocity = data[0][0][2]
-                    #print(self.number_to_note(midi_note), midi_note_velocity)
-                    if cmd == NOTE_ON and midi_note_velocity > 0:
-                        noteon_time[midi_note] = time_offset
-                        #print('note-on', midi_note, float(time_offset)/self.beat_duration)
-                    elif (cmd == NOTE_OFF or midi_note_velocity ==0) and midi_note in noteon_time:
-                        start = float(noteon_time[midi_note]) / self.beat_duration
-                        end = float(time_offset) / self.beat_duration
-                        self.notes.append([midi_note, start, end])
-                        #print('note-off', midi_note, float(time_offset)/self.beat_duration)
-
-
-        finally:
-            if wx.Platform == "__WXMAC__":
-                self.midi_in.close()
-            else:
-                self.midi_in.Close()
-            if self.midi_out is not None:
-                if wx.Platform == "__WXMAC__":
-                    self.midi_out.close()
-                else:
-                    self.midi_out.Close()
-            self.is_running = False
-        self.quantize()
-        wx.PostEvent(self._notify_window, RecordStopEvent(-1, self.notes))
-
-    def quantize_swinged_16th(self, start_time):
-        quantize_time = 0.25  # 1/16th
-        return round(start_time / quantize_time) * quantize_time
-
-    def quantize_triplet(self, notes):
-        if len(notes) < 4:
-            return False
-
-        tolerance = 0.07
-        first_note_start = round(notes[0][1] / 0.25) * 0.25
-
-        durations = [n2[1]-n1[1] for n1, n2 in zip(notes[:3], notes[1:4])]
-
-        for total_len in [1.0, 0.5]:
-            if abs(durations[0] - total_len/3) < tolerance and \
-               abs(durations[1] - total_len/3) < tolerance and \
-               abs(durations[2] - total_len/3) < tolerance and \
-               frac_mod(first_note_start, total_len) < tolerance:  # make sure that the start is on beat (8th) triplets, or on an 8th for 16th triplets
-
-                notes[0][1] = first_note_start             # start time
-                notes[1][1] = notes[0][1] + total_len /3   # start time
-                notes[2][1] = notes[1][1] + total_len /3   # start time
-
-                notes[0][2] = notes[0][1] + total_len / 3  # end time
-                notes[1][2] = notes[1][1] + total_len / 3  # end time
-                notes[2][2] = notes[2][1] + total_len / 3  # end time
-
-                return True
-        return False
-
-    def quantize(self):
-        quantized_notes = []
-
-        if self.notes:
-            distance_from_beat = frac_mod(self.notes[0][1], 1.0)
-            if distance_from_beat > 0.5:
-                distance_from_beat = -(1.0 - distance_from_beat)
-            for note in self.notes:
-                note[1] -= distance_from_beat/2
-
-        for n1, n2 in zip(self.notes[0:-1], self.notes[1:]):
-            n1[2] = n2[1]  # end of first is set to start of next note
-
-        while self.notes:
-            if self.quantize_triplet(self.notes):
-                quantized_notes.extend(self.notes[:3])
-                self.notes = self.notes[3:]
-            else:
-                note, start, end = self.notes.pop(0)
-                start = self.quantize_swinged_16th(start)
-                quantized_notes.append((note, start, end))
-
-        for n1, n2 in zip(self.notes[0:-1], self.notes[1:]):
-            n1[2] = n2[1]  # end of first is set to start of next note
-
-        # quantize the end of the last note so that it ends at an even bar
-        if quantized_notes:
-            if self.metre_2 == 4:
-                bar_length = float(self.metre_1)
-            elif self.metre_2 == 8:
-                bar_length = float(self.metre_1) / 2
-            else:
-                raise Exception('unknown metre')
-            (note, start, end) = quantized_notes.pop()
-            end = (int(end / bar_length) + 1) * bar_length     # set the end to be at the end of the bar
-            quantized_notes.append((note, start, end))
-
-        self.notes = [Note(start, end, note) for (note, start, end) in quantized_notes]
-
-    def abort(self):
-        self._want_abort = True
-
 
 class FieldReferenceTree(htl.HyperTreeList):
 
@@ -1969,92 +1742,6 @@ class FieldReferenceTree(htl.HyperTreeList):
 
         # 1.3.6.2 [JWDJ] moved get_sections to AbcStructure.get_sections
 
-class IncipitsFrame(wx.Dialog):
-    def __init__(self, parent, settings):
-        self.settings = settings
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, _('Generate incipits file...'), wx.DefaultPosition, wx.Size(530, 260))
-        self.SetBackgroundColour(dialog_background_colour)
-        border = control_margin
-        sizer = box1 = wx.GridBagSizer()
-        lb1 = wx.StaticText(self, wx.ID_ANY, _('Number of bars to extract:'))
-        lb2 = wx.StaticText(self, wx.ID_ANY, _('Maximum number of repeats to extract:'))
-        lb3 = wx.StaticText(self, wx.ID_ANY, _('Maximum number of titles/subtitles to extract:'))
-        lb4 = wx.StaticText(self, wx.ID_ANY, _('Fields to sort by (eg. T):'))
-        lb5 = wx.StaticText(self, wx.ID_ANY, _('Number of rows per column:'))
-        self.edNumBars       = wx.SpinCtrl(self, wx.ID_ANY, "", min=1, max=10, initial=self.settings.get('incipits_numbars', 2))
-        self.edNumRepeats    = wx.SpinCtrl(self, wx.ID_ANY, "", min=1, max=10, initial=self.settings.get('incipits_numrepeats', 1))
-        self.edNumTitles     = wx.SpinCtrl(self, wx.ID_ANY, "", min=0, max=10, initial=self.settings.get('incipits_numtitles', 1))
-        self.edSortFields    = wx.TextCtrl(self, wx.ID_ANY, self.settings.get('incipits_sortfields', ''))
-        self.chkTwoColumns   = wx.CheckBox(self, wx.ID_ANY, _('&Two column output'))
-        self.edNumRows       = wx.SpinCtrl(self, wx.ID_ANY, "", min=1, max=40, initial=self.settings.get('incipits_rows', 10))
-        self.chkTwoColumns.SetValue(self.settings.get('incipits_twocolumns', True))
-        for c in [self.edNumBars, self.edNumRepeats, self.edNumTitles, self.edNumRows, self.edSortFields]:
-            c.SetValue(c.GetValue()) # this seems to be needed on OSX
-
-        sizer.Add(lb1,                  pos=(0,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.edNumBars,       pos=(0,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(lb2,                  pos=(1,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.edNumRepeats,    pos=(1,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(lb3,                  pos=(2,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.edNumTitles,     pos=(2,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(lb4,                  pos=(3,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.edSortFields,    pos=(3,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.chkTwoColumns,   pos=(4,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(lb5,                  pos=(5,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        sizer.Add(self.edNumRows,       pos=(5,1), flag=wx.EXPAND | wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-
-        # ok, cancel buttons
-        self.ok = wx.Button(self, wx.ID_ANY, _('&Ok'))
-        self.cancel = wx.Button(self, wx.ID_ANY, _('&Cancel'))
-        self.ok.SetDefault()
-        # 1.3.6.1 [JWdJ] 2015-01-30 Swapped next two lines so OK-button comes first (OK Cancel)
-        if WX4:
-            btn_box = wx.BoxSizer(wx.HORIZONTAL)
-            btn_box.Add(self.ok, wx.ID_OK)
-            btn_box.Add(self.cancel, wx.ID_CANCEL)
-        else:
-            btn_box = wx.BoxSizer(wx.HORIZONTAL)
-            btn_box.Add(self.ok, wx.ID_OK, flag=wx.ALIGN_RIGHT)
-            btn_box.Add(self.cancel, wx.ID_CANCEL, flag=wx.ALIGN_RIGHT)
-
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(box1, flag=wx.ALL | wx.EXPAND, border=10)
-        self.sizer.Add(btn_box, flag=wx.ALL | wx.ALIGN_RIGHT, border=10)
-        self.SetAutoLayout(True)
-        self.Centre()
-        self.sizer.Fit(self)
-        self.SetSizer(self.sizer)
-
-        self.ok.Bind(wx.EVT_BUTTON, self.OnOk)
-        self.cancel.Bind(wx.EVT_BUTTON, self.OnCancel)
-        self.chkTwoColumns.Bind(wx.EVT_CHECKBOX, self.OnTwoColumns)
-        self.GrayUngray()
-        self.save_settings()
-
-    def GrayUngray(self):
-        self.edNumRows.Enable(self.chkTwoColumns.IsChecked())
-
-    def OnTwoColumns(self, evt):
-        self.GrayUngray()
-
-    def save_settings(self):
-        self.settings['incipits_numbars'] = self.edNumBars.GetValue()
-        self.settings['incipits_numrepeats'] = self.edNumRepeats.GetValue()
-        self.settings['incipits_numtitles'] = self.edNumTitles.GetValue()
-        self.settings['incipits_sortfields'] = self.edSortFields.GetValue().strip()
-        self.settings['incipits_twocolumns'] = self.chkTwoColumns.IsChecked()
-        self.settings['incipits_rows'] = self.edNumRows.GetValue()
-        if self.settings['incipits_rows'] <= 0:
-            self.settings['incipits_rows'] = 1
-
-    def OnOk(self, evt):
-        self.save_settings()
-        self.EndModal(wx.ID_OK)
-
-    def OnCancel(self, evt):
-        self.EndModal(wx.ID_CANCEL)
-
-
 #p09 Abcm2psSettingsFrame dialog box has been replaced with a
 #tabbed notebook so we have lots of room for adding more options.
 #2014-10-14
@@ -2071,14 +1758,14 @@ class MyNoteBook(wx.Frame):
         self.chordpage = MyChordPlayPage(nb, settings)
         self.voicepage = MyVoicePage(nb, settings)
         # 1.3.6.1 [SS] 2015-02-02
-        xmlpage    = MusicXmlPage(nb, settings)
+        #lhh xmlpage    = MusicXmlPage(nb, settings)
         colorsettings = ColorSettingsFrame(nb, settings)
         nb.AddPage(abcm2pspage, _("Abcm2ps"))
         self.chordpage_id = nb.PageCount
         nb.AddPage(self.chordpage, _("Abc2midi"))
         self.voicepage_id = nb.PageCount
         nb.AddPage(self.voicepage, _("Voices"))
-        nb.AddPage(xmlpage, _("MusicXML"))
+        #lhh nb.AddPage(xmlpage, _("MusicXML"))
         nb.AddPage(abcsettings, _("File Settings"))
         nb.AddPage(colorsettings, _("Colors"))
         nb.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
@@ -2114,12 +1801,12 @@ class AbcFileSettingsFrame(wx.Panel):
             PathEntry('abc2midi', _('abc2midi executable:'), _('This executable is used to make the midi file'), True, None, None),
             PathEntry('abc2abc', _('abc2abc executable:'), _('This executable is used to transpose the music'), True, None, None),
             # 1.3.6.4 [SS] 2015-06-22
-            PathEntry('midi2abc', _('midi2abc executable:'), _('This executable is used to disassemble the output midi file'), True, None, None),
-            PathEntry('gs', _('ghostscript executable:'), _('This executable is used to create PDF files'), False, None, None),
-            PathEntry('nwc2xml', _('nwc2xml executable:'), _('For NoteWorthy Composer - Windows only'), False, None, None),
-            PathEntry('ffmpeg', _('ffmpeg executable:'), _('This executable is used to convert music to compressed formats'), False, None, None),
-            PathEntry('midiplayer', _('midiplayer:'), _('Your preferred MIDI player'), False, None, self.midiplayer_changed),
-            PathEntry('soundfont', _('SoundFont:'), _('Your preferred SoundFont (.sf2)'), False, 'SoundFont (*.sf2;*.sf3)|*.sf2;*.sf3', self.soundfont_changed)
+            #lhh PathEntry('midi2abc', _('midi2abc executable:'), _('This executable is used to disassemble the output midi file'), True, None, None),
+            PathEntry('gs', _('ps2pdf executable:'), _('This executable is used to create PDF files'), False, None, None),
+            #lhh PathEntry('nwc2xml', _('nwc2xml executable:'), _('For NoteWorthy Composer - Windows only'), False, None, None),
+            #lhh PathEntry('ffmpeg', _('ffmpeg executable:'), _('This executable is used to convert music to compressed formats'), False, None, None),
+            #lhh PathEntry('midiplayer', _('midiplayer:'), _('Your preferred MIDI player'), False, None, self.midiplayer_changed),
+            #lhh PathEntry('soundfont', _('SoundFont:'), _('Your preferred SoundFont (.sf2)'), False, 'SoundFont (*.sf2;*.sf3)|*.sf2;*.sf3', self.soundfont_changed)
         ]
 
 
@@ -2178,16 +1865,16 @@ class AbcFileSettingsFrame(wx.Panel):
             box2 = wx.StaticBoxSizer(wx.StaticBox(self, wx.ID_ANY, _("File paths to required executables")), wx.VERTICAL)
             box2.Add(sizer, flag=wx.ALL | wx.EXPAND)
 
-        self.chkIncludeHeader = wx.CheckBox(self, wx.ID_ANY, _('Include file header when rendering tunes'))
+        #lhh self.chkIncludeHeader = wx.CheckBox(self, wx.ID_ANY, _('Include file header when rendering tunes'))
 
         # 1.3.6.3 [SS] 2015-04-29
-        extraplayerparam = wx.StaticText(self, wx.ID_ANY, _("Extra MIDI player parameters"))
-        self.extras = wx.TextCtrl(self, wx.ID_ANY, size=(200, 22))
+        #lhh extraplayerparam = wx.StaticText(self, wx.ID_ANY, _("Extra MIDI player parameters"))
+        #lhh self.extras = wx.TextCtrl(self, wx.ID_ANY, size=(200, 22))
 
-        midiplayer_params_sizer = wx.GridBagSizer()
-        midiplayer_params_sizer.Add(self.chkIncludeHeader, pos=(0,0), span=(0,2), flag=wx.ALL, border=border)
-        midiplayer_params_sizer.Add(extraplayerparam, pos=(1,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
-        midiplayer_params_sizer.Add(self.extras, pos=(1,1), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
+        #lhh midiplayer_params_sizer = wx.GridBagSizer()
+        #lhh midiplayer_params_sizer.Add(self.chkIncludeHeader, pos=(0,0), span=(0,2), flag=wx.ALL, border=border)
+        #lhh midiplayer_params_sizer.Add(extraplayerparam, pos=(1,0), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
+        #lhh midiplayer_params_sizer.Add(self.extras, pos=(1,1), flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL, border=border)
 
         self.restore_settings = wx.Button(self, wx.ID_ANY, _('Restore settings')) # 1.3.6.3 [JWDJ] 2015-04-25 renamed
         check_toolTip = _('Restore default file paths to abcm2ps, abc2midi, abc2abc, ghostscript when blank')
@@ -2197,7 +1884,7 @@ class AbcFileSettingsFrame(wx.Panel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(box2, flag=wx.ALL | wx.EXPAND, border=10)
         # 1.3.6.1 [SS] 2015-01-28
-        self.sizer.Add(midiplayer_params_sizer, flag=wx.ALL | wx.EXPAND, border=border)
+        #lhh self.sizer.Add(midiplayer_params_sizer, flag=wx.ALL | wx.EXPAND, border=border)
         self.sizer.Add(self.restore_settings, flag=wx.ALL | wx.ALIGN_RIGHT, border=border)
 
         self.SetSizer(self.sizer)
@@ -2205,13 +1892,11 @@ class AbcFileSettingsFrame(wx.Panel):
         self.Centre()
         self.sizer.Fit(self)
 
-        self.chkIncludeHeader.SetValue(self.settings.get('abc_include_file_header', True))
-        self.extras.SetValue(self.settings.get('midiplayer_parameters', ''))
+        #lhh self.chkIncludeHeader.SetValue(self.settings.get('abc_include_file_header', True))
+        #lhh self.extras.SetValue(self.settings.get('midiplayer_parameters', ''))
 
-        # 1.3.6.1 [SS] 2015-01-28
-        self.chkIncludeHeader.Bind(wx.EVT_CHECKBOX, self.On_Chk_IncludeHeader, self.chkIncludeHeader)
-        # 1.3.6.3 [SS] 2015-04-29
-        self.extras.Bind(wx.EVT_TEXT, self.On_extra_midi_parameters, self.extras)
+        #lhh self.chkIncludeHeader.Bind(wx.EVT_CHECKBOX, self.On_Chk_IncludeHeader, self.chkIncludeHeader)
+        #lhh self.extras.Bind(wx.EVT_TEXT, self.On_extra_midi_parameters, self.extras)
 
         self.restore_settings.Bind(wx.EVT_BUTTON, self.OnRestoreSettings, self.restore_settings)
 
@@ -4096,17 +3781,7 @@ class MainFrame(wx.Frame):
 
         soundfont_path = settings.get('soundfont_path', default_soundfont_path)
         self.uses_fluidsynth = False
-        if fluidsynth_available and soundfont_path and os.path.exists(soundfont_path):
-            try:
-                init_soundfont_path = os.path.join(application_path, 'sound', 'example.sf2')
-                if not os.path.exists(init_soundfont_path):
-                    init_soundfont_path = soundfont_path
-                self.mc = FluidSynthPlayer(init_soundfont_path)
-                self.uses_fluidsynth = True
-                self.mc.set_soundfont(soundfont_path, load_on_play=True)
-            except Exception as e:
-                error_msg = traceback.format_exc()
-                self.mc = None
+        self.mc = None
                 
         #FAU:MIDIPLAY: on Mac add the ability to interface to System Midi Synth via mplay in case fluidsynth not available or not configured with soundfont
         if wx.Platform == "__WXMAC__" and self.mc is None:
@@ -4279,7 +3954,7 @@ class MainFrame(wx.Frame):
         # 1.3.6.3 [SS] 2015-05-04
         self.statusbar.SetStatusText(_('This is the status bar. Check it occasionally.'))
         execmessages = _('You are running {0} on {1}').format(program_name, wx.Platform)
-        execmessages += '\n' + _('You can get the latest version on') + ' https://sourceforge.net/projects/easyabc/'
+        #lhh execmessages += '\n' + _('You can get the latest version on') + ' https://sourceforge.net/projects/easyabc/'
 
     def update_controls_using_settings(self):
         # p09 Enable the play button if midiplayer_path is defined. 2014-10-14 [SS]
@@ -4774,8 +4449,6 @@ class MainFrame(wx.Frame):
         #    self.toolbar.Realize() # 1.3.6.4 [JWDJ] fixes toolbar repaint bug for Windows
         if self.record_thread and self.record_thread.is_running:
             self.OnToolRecord(None)
-        #if self.uses_fluidsynth:
-        #    self.OnAfterStop()
         self.editor.SetFocus()
 
     def OnSeek(self, evt):
@@ -4821,7 +4494,7 @@ class MainFrame(wx.Frame):
                     self.FollowScore(offset, queue_number)
                 
                 self.progress_slider.SetValue(offset)
-            elif self.started_playing and not self.mc.is_paused: #and self.uses_fluidsynth 
+            elif self.started_playing and not self.mc.is_paused: 
                 self.started_playing = False
                 wx.CallLater(500, self.OnAfterStop)
 
@@ -4948,17 +4621,18 @@ class MainFrame(wx.Frame):
         self.id_add_tune = 3007
         self.id_abc_assist = 3008
 
-        self.bpm_menu = bpm_menu = create_menu([], parent=self)
-        for i, bpm in enumerate([30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140]):
-            append_menu_item(bpm_menu, str(bpm), '', self.OnRecordBpmSelected, kind=wx.ITEM_RADIO)
-
-        self.metre_menu = metre_menu = create_menu([], parent=self)
-        for i, metre in enumerate(['2/4', '3/4', '4/4', '5/4']):
-            append_menu_item(metre_menu, metre, '', self.OnRecordMetreSelected, kind=wx.ITEM_RADIO)
-
-        self.record_popup = record_popup = create_menu([], parent=self)
-        append_submenu(record_popup, _('Beats per minute'), bpm_menu)
-        append_submenu(record_popup, _('Metre'), metre_menu)
+#lhh - no recording available
+#        self.bpm_menu = bpm_menu = create_menu([], parent=self)
+#        for i, bpm in enumerate([30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140]):
+#            append_menu_item(bpm_menu, str(bpm), '', self.OnRecordBpmSelected, kind=wx.ITEM_RADIO)
+#
+#        self.metre_menu = metre_menu = create_menu([], parent=self)
+#        for i, metre in enumerate(['2/4', '3/4', '4/4', '5/4']):
+#            append_menu_item(metre_menu, metre, '', self.OnRecordMetreSelected, kind=wx.ITEM_RADIO)
+#
+#        self.record_popup = record_popup = create_menu([], parent=self)
+#        append_submenu(record_popup, _('Beats per minute'), bpm_menu)
+#        append_submenu(record_popup, _('Metre'), metre_menu)
 
         button_style = platebtn.PB_STYLE_DEFAULT | platebtn.PB_STYLE_NOBG
         image_path = self.get_image_path()
@@ -4966,13 +4640,13 @@ class MainFrame(wx.Frame):
         self.pause_bitmap = wx.Image(os.path.join(image_path, 'toolbar_pause.png')).ConvertToBitmap()
         self.play_button = play = platebtn.PlateButton(self.toolbar, self.id_play, "", self.play_bitmap, style=button_style)
         self.stop_button = stop = platebtn.PlateButton(self.toolbar, self.id_stop, "", wx.Image(os.path.join(image_path, 'toolbar_stop.png')).ConvertToBitmap(), style=button_style)
-        self.record_btn = record = platebtn.PlateButton(self.toolbar, self.id_record, "", wx.Image(os.path.join(image_path, 'toolbar_record.png')).ConvertToBitmap(), style=button_style)
+#lhh        self.record_btn = record = platebtn.PlateButton(self.toolbar, self.id_record, "", wx.Image(os.path.join(image_path, 'toolbar_record.png')).ConvertToBitmap(), style=button_style)
 
         play.SetHelpText('Play (F6)')
-        record.SetMenu(record_popup)
+#lhh        record.SetMenu(record_popup)
         self.toolbar.AddControl(play)
         self.toolbar.AddControl(stop)
-        self.toolbar.AddControl(record)
+#lhh        self.toolbar.AddControl(record)
         self.toolbar.AddSeparator()
 
         # 1.3.6.3 [JWdJ] 2015-04-26 turned off abc assist for it is not finished yet
@@ -5026,7 +4700,7 @@ class MainFrame(wx.Frame):
         play.Bind(wx.EVT_LEFT_DOWN, self.OnToolPlay)
         play.Bind(wx.EVT_LEFT_DCLICK, self.OnToolPlayLoop)
         self.Bind(wx.EVT_BUTTON, self.OnToolStop, stop)
-        self.Bind(wx.EVT_BUTTON, self.OnToolRecord, record)
+#lhh        self.Bind(wx.EVT_BUTTON, self.OnToolRecord, record)
 
         self.popup_upload = self.create_upload_context_menu()
 
@@ -5083,162 +4757,6 @@ class MainFrame(wx.Frame):
             self.SetStatusText(_("&Do-re-mi mode").replace('&', ''))
         else:
             self.SetStatusText('')
-
-    def generate_incipits_abc(self):
-        def get_num_music_lines_in_tune(abc):
-            try:
-                notes = re.split(r'K:.*\s*', abc, 1)[1]  # extract part after first K: field
-                notes = re.sub(r'\[\w:.*?\]', '', notes) # remove fields
-                return len([l for l in text_to_lines(notes) if l.strip()])  # return number of non-empty lines
-            except IndexError:
-                return 1
-
-        result = []
-        for i in range(self.tune_list.GetItemCount()):
-            tune = self.GetTune(i)
-
-            # make a copy of the tune header in order to be able to restore it after the incip extraction
-            lines = text_to_lines(tune.abc)
-            header = []
-            title_count = 0
-            for line in lines:
-                if re.match('[a-zA-Z]:', line):
-                    if line[0] == 'T':
-                        title_count += 1
-                        if title_count > self.settings['incipits_numtitles']:
-                            continue
-                    if line[0] != 'W':
-                        header.append(line)
-                elif re.match(r'\s*%', line):
-                    pass
-                else:
-                    break
-
-            incipit_parts = extract_incipit(os.linesep.join([tune.header, tune.abc]),
-                                            num_bars=self.settings['incipits_numbars'],
-                                            num_repeats=self.settings['incipits_numrepeats'])
-            #abc = '[I:staffbreak]'.join(incipit_parts)
-            abc = (os.linesep+'[T:][M:none]'+os.linesep).join(incipit_parts)
-            abc = os.linesep.join(header + [abc, ''])
-            result.append(abc)
-
-        # extract file header
-        lines = []
-        editor = self.editor
-        get_line = editor.GetLine
-        for i in xrange(editor.GetLineCount()):
-            line = get_line(i)
-            if line.startswith('X:') or line.startswith('T:'):
-                break
-            elif re.match(r'%%.*|[a-zA-Z_]:.*', line):
-                lines.append(line.rstrip())
-
-        lines.append('')
-        lines.append('%%topspace 0.0cm')
-        lines.append('%%staffsep 0.7cm')
-        lines.append('%%titleformat T-1') # C1 S1')
-        lines.append('%%maxshrink 1.4')
-        lines.append('%%musiconly 1')
-        lines.append('%%printtempo 0')
-        lines.append('%%titlefont Helvetica-Oblique 16')
-        lines.append('%%subtitlefont Helvetica-Oblique 13')
-        lines.append('')
-        lines.append('')
-        file_header = lines[:]
-        lines.extend(result)
-        abc_code = os.linesep.join(lines)
-
-        if self.settings['incipits_sortfields']:
-            sort_fields = re.findall('[A-Za-z]', self.settings['incipits_sortfields'])
-            abc_code = sort_abc_tunes(abc_code, sort_fields)
-
-        if self.settings['incipits_twocolumns']:
-            parts = file_header
-
-            # extract each tune (incipit)
-            pos = [m.start(1) for m in re.compile('(^X:)', re.M).finditer(abc_code)] + [20 * 1024**2]
-            all_tunes = [abc_code[s1:s2].strip() + os.linesep for s1, s2 in zip(pos[0:], pos[1:])]
-
-            while all_tunes:
-                # extract left column tunes with a total of max <<incipits_rows>> rows
-                num_lines = 0
-                left_tunes = []
-                while all_tunes:
-                    n = get_num_music_lines_in_tune(all_tunes[0])
-                    if num_lines == 0 or num_lines + n <= self.settings['incipits_rows']:
-                        left_tunes.append(all_tunes.pop(0))
-                        num_lines += n
-                    else:
-                        break
-
-                # extract right column tunes with a total of max <<incipits_rows>> rows
-                num_lines = 0
-                right_tunes = []
-                while all_tunes:
-                    n = get_num_music_lines_in_tune(all_tunes[0])
-                    if num_lines == 0 or num_lines + n <= self.settings['incipits_rows']:
-                        right_tunes.append(all_tunes.pop(0))
-                        num_lines += n
-                    else:
-                        break
-
-                left_col = ['%%multicol start',
-                            '%%rightmargin 11.5cm',
-                            '%%leftmargin 1.5cm', ''] + left_tunes
-                right_col = ['%%multicol new',
-                            '%%rightmargin 1.5cm',
-                            '%%leftmargin 11.5cm', ''] + right_tunes + ['', '%%multicol end', '%%newpage', '']
-                parts.extend(left_col)
-                parts.extend(right_col)
-            abc_code = os.linesep.join(parts)
-
-        return abc_code
-
-    def OnGenerateIncipits(self, evt):
-        dlg = IncipitsFrame(self, self.settings)
-        try:
-            modal_result = dlg.ShowModal()
-        finally:
-            dlg.Destroy() # 1.3.6.3 [JWDJ] 2015-04-21 always clean up dialog window
-        if modal_result != wx.ID_OK:
-            return
-
-        self.SetCursor(wx.HOURGLASS_CURSOR)
-        abc = self.generate_incipits_abc()
-        self.SetCursor(wx.STANDARD_CURSOR)
-
-        frame = self.OnNew()
-        frame.editor.SetText(abc)
-        frame.editor.SetSavePoint()
-        frame.editor.EmptyUndoBuffer()
-        frame.document_name = self.document_name + ' ' + _('incipits')
-        frame.SetTitle('%s - %s' % (program_name, frame.document_name))
-        frame.UpdateTuneList()
-        frame.tune_list.Select(0)
-
-    def OnViewIncipits(self, evt):
-        dlg = IncipitsFrame(self, self.settings)
-        try:
-            modal_result = dlg.ShowModal()
-        finally:
-            dlg.Destroy() # 1.3.6.3 [JWDJ] 2015-04-21 always clean up dialog window
-        if modal_result != wx.ID_OK:
-            return
-        try:
-            self.SetCursor(wx.HOURGLASS_CURSOR)
-            abc = self.generate_incipits_abc()
-            pdf_file = AbcToPDF(self.settings, abc, '', self.cache_dir, self.settings.get('abcm2ps_extra_params', ''),
-                                                         self.settings.get('abcm2ps_path', ''),
-                                                         self.settings.get('gs_path',''),
-                                                         #self.settings.get('ps2pdf_path',''),
-                                                         self.settings.get('abcm2ps_format_path', ''),
-                                                         generate_toc = True)
-            if pdf_file:
-                launch_file(pdf_file)
-            else:
-                wx.MessageBox(_("Error: there was some trouble saving the file."), _("File could not be saved properly"), wx.OK)
-        finally:
-            self.SetCursor(wx.STANDARD_CURSOR)
 
     def OnSortTunes(self, evt):
         dlg = wx.TextEntryDialog(
@@ -5347,78 +4865,6 @@ class MainFrame(wx.Frame):
                 midi_tune.cleanup()
         return False
 
-    def OnExportToMP3(self, evt):
-        if self.uses_fluidsynth:
-            self.export_tunes(_('MP3 file'), '.mp3', self.export_mp3, only_selected=True)
-        else:
-            self.ReportFluidSynthIsMissing()
-
-    def OnExportToAAC(self, evt):
-        if self.uses_fluidsynth:
-            self.export_tunes(_('AAC file'), '.m4a', self.export_aac, only_selected=True)
-        else:
-            self.ReportFluidSynthIsMissing()
-
-    def OnExportToWave(self, evt):
-        if self.uses_fluidsynth:
-            self.export_tunes(_('Wave file'), '.wav', self.export_wave, only_selected=True)
-        else:
-            self.ReportFluidSynthIsMissing()
-
-    def ReportFluidSynthIsMissing(self):
-            wx.MessageBox(_("Both the FluidSynth library and a valid SoundFont (see menu Settings -> ABC Settings -> File settings) are required for exporting to a wave file."),
-                          _("Unable to export"), wx.ICON_INFORMATION | wx.OK)
-
-    def export_wave(self, tune, filepath):
-        tempo_multiplier = self.get_tempo_multiplier()
-        midi_tune = AbcToMidi(tune.abc, tune.header, self.cache_dir, self.settings, self.statusbar, tempo_multiplier)
-        if midi_tune:
-            try:
-                self.mc.render_to_file(midi_tune.midi_file, filepath)
-                return True
-            except:
-                self.statusbar.SetStatusText(_('Failed to create {0}').format(filepath))
-            finally:
-                midi_tune.cleanup()
-        return False
-
-    def export_mp3(self, tune, filepath):
-        self.export_ffmpeg(tune, filepath)
-
-    def export_aac(self, tune, filepath):
-        self.export_ffmpeg(tune, filepath)
-
-    def export_ffmpeg(self, tune, filepath):
-        global execmessages
-        ffmpeg_path = self.settings['ffmpeg_path']
-        if ffmpeg_path and os.path.exists(ffmpeg_path):
-            base_name, ext = os.path.splitext(filepath)
-            tmp_file = base_name + '.wav'
-            if not self.export_wave(tune, tmp_file):
-                return
-
-            if os.path.exists(tmp_file):
-                cmd = [ffmpeg_path, '-y', '-nostdin', '-i', tmp_file, '-vn', filepath]
-                if ext == '.m4a':
-                    cmd = [ffmpeg_path, '-y', '-nostdin', '-i', tmp_file, '-c:a', 'aac', '-q:a', '0.5', filepath]
-
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                execmessages += '\nffmpeg\n' + " ".join(cmd)
-                stdout_value, stderr_value, returncode = get_output_from_process(cmd)
-                if returncode != 0:
-                    execmessages += stderr_value
-                    execmessages += stdout_value
-                    print(stderr_value)
-                    print(stdout_value)
-                    print(returncode)
-
-                if os.path.exists(tmp_file):
-                    os.remove(tmp_file)
-        else:
-            dlg = wx.MessageDialog(self, _('ffmpeg was not found here. Go to settings and indicate the path'), _('Warning'), wx.OK)
-            dlg.ShowModal()
-
     #Add an export all tunes to individual PDF option
     def OnExportAllPDFFiles(self, evt):
         self.export_pdf_tunes(only_selected=False)
@@ -5470,50 +4916,8 @@ class MainFrame(wx.Frame):
             return launch_file(svg_files[0])
         return False
 
-    def OnExportMusicXML(self, evt):
-        self.export_tunes_to_musicxml(only_selected=True)
-
-    def OnExportAllMusicXML(self, evt):
-        self.export_tunes_to_musicxml(only_selected=False)
-
-    def export_tunes_to_musicxml(self, only_selected):
-        mxl = self.settings['xmlcompressed']
-        global execmessages
-        execmessages = u'abc_to_mxl   compression = ' + str(mxl) + '\n'
-        extension = '.xml'
-        filetype = _('MusicXML')
-        if mxl:
-            extension = '.mxl'
-            filetype = _('Compressed MusicXML')
-
-        self.export_tunes(filetype, extension, self.export_musicxml, only_selected=only_selected)
-
-    def export_musicxml(self, tune, filepath):
-        global execmessages
-        mxl = self.settings['xmlcompressed']
-        pageFormat = []
-        errors = []
-        # 1.3.6.3 [SS] 2015-05-07
-        info_messages = []
-        try:
-            abc_to_xml(tune.header + os.linesep + tune.abc, filepath, mxl, pageFormat, info_messages)
-        except Exception as e:
-            error_msg = traceback.format_exc() + os.linesep + os.linesep.join(errors)
-            mdlg = ErrorFrame(self, _('Error during conversion of X:{0} ("{1}"): {2}').format(tune.xnum, tune.title, error_msg))
-            result = mdlg.ShowModal()
-            mdlg.Destroy()
-            return result == wx.ID_OK  # if ok is pressed, continue to process other tunes, if cancel, do not process more tunes
-
-        # 1.3.6 [SS] 2014-12-10
-        for infoline in info_messages:
-            execmessages += infoline
-        return True
-
     def OnExportHTML(self, evt):
         self.export_tunes(_('HTML file'), '.html', self.export_html, only_selected=True)
-
-    def OnExportInteractiveHTML(self, evt):
-        self.export_tunes(_('HTML file (interactive)'), '.html', self.export_interactive_html, only_selected=True, single_file=True)
 
     def export_html(self, tune, filepath):
         # 1.3.6 [SS] 2014-12-02 2014-12-07
@@ -5539,111 +4943,8 @@ class MainFrame(wx.Frame):
     def comment_pageheight(self, abc):
         return re.sub(r'(?m)^%%pageheight\b', '% %%pageheight', abc)
 
-    def export_interactive_html(self, tune, filepath):
-        f = codecs.open(filepath, 'wb', 'UTF-8')
-        f.write('<!DOCTYPE HTML>\n')
-        f.write('<html>\n<head>\n')
-        f.write('<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>\n')
-        f.write('<script src="http://moinejf.free.fr/js/abcweb-1.js"></script>\n')
-        f.write('<script src="http://moinejf.free.fr/js/snd-1.js"></script>\n')
-        f.write('<style type="text/css">\n')
-        f.write('svg {display:block}\n')
-        f.write('@media print{body{margin:0;padding:0;border:0}.nop{display:none}}\n')
-        f.write('</style>\n')
-        f.write('</head>\n<body>\n<script type="text/vnd.abc">\n\n\n')
-        file_header = self.comment_pageheight(tune.header)
-        f.write(file_header)
-        f.write('\n')
-        abc = tune.abc
-        if '%%MIDI drummap' in abc:
-            abc = re.sub(r'%%MIDI drummap\s+(?P<note>\^[A-Ga-g])\s+(?P<midinote>\d+)', r'%%percmap \g<note> \g<midinote> x', abc)
-            abc = re.sub(r'%%MIDI drummap\s+(?P<note>_[A-Ga-g])\s+(?P<midinote>\d+)', r'%%percmap \g<note> \g<midinote> circle-x', abc)
-            abc = abc.replace('%%MIDI drummap ', '%%percmap ')
-
-        if self.settings.get('play_chords') or '%%MIDI gchord' in abc:
-            # prepend gchordon to each tune body
-            abclines = text_to_lines(abc)
-            new_abc_lines = []
-            header_started = False
-            for line in abclines:
-                new_abc_lines.append(line)
-                if line.startswith('X:'):
-                    header_started = True
-                elif line.startswith('K:') and header_started:
-                    new_abc_lines.append('%%MIDI gchordon')
-                    header_started = False
-            abc = '\n'.join(new_abc_lines)
-        f.write(self.comment_pageheight(abc))
-        f.write('\n\n\n</script>\n</body>\n</html>')
-        f.close()
-        return launch_file(filepath)
-
     def OnExportAllHTML(self, evt):
         self.export_tunes(_('HTML file'), '.html', self.export_html, only_selected=False, single_file=True)
-
-    def OnExportAllInteractiveHTML(self, evt):
-        self.export_tunes(_('HTML file'), '.html', self.export_interactive_html, only_selected=False, single_file=True)
-
-    def OnExportAllEpub(self, evt):
-        tunes = []
-        for i in range(self.tune_list.GetItemCount()):
-            self.tune_list.Select(i)
-            tunes.append(self.GetSelectedTune())
-        if tunes:
-            if self.current_file:
-                filename = os.path.splitext(self.current_file)[0] + '.epub'
-            else:
-                filename = ''
-            dlg = wx.FileDialog(self, message=_("Export all tunes as ..."), defaultFile=os.path.basename(filename), wildcard=_("Epub file") + " (*.epub)|*.epub", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
-            try:
-                if dlg.ShowModal() == wx.ID_OK:
-                    self.SetCursor(wx.HOURGLASS_CURSOR)
-                    path = dlg.GetPath()
-                    zip = zipfile.ZipFile(path, 'w')
-                    zip.writestr('mimetype', 'application/epub+zip')
-                    zip.writestr('META-INF/container.xml',
-                                 '''<?xml version="1.0"?>
-                                        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-                                            <rootfiles> <rootfile full-path="OEBPS/book.opf" media-type="application/oebps-package+xml" /> </rootfiles>
-                                        </container>''')
-                    opf = '''<package unique-identifier="pub-id">
-                            <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-                                <dc:identifier id="pub-id">urn:uuid:A1B0D67E-2E81-4DF5-9E67-A64CBE366809</dc:identifier>
-                                <dc:title>ABC tunebook</dc:title>
-                                <dc:language>en</dc:language>
-                                <meta property="dcterms:modified">2012-05-01T12:00:00Z</meta>
-                            </metadata>
-                            <manifest>
-                              %s
-                            </manifest>
-                        </package>'''
-
-                    f = StringIO()
-                    f.write('''<html xmlns="http://www.w3.org/1999/xhtml">''')
-                    f.write('''<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
-                      <style type="text/css">
-                        svg { float: left; clear: both; }
-                      </style>
-                    </head>
-                    <body>\n\n''')
-                    num_pages = []
-                    for i, tune in enumerate(tunes):
-                        # 1.3.6 [SS] 2014-12-02 2014-12-07
-                        svg_files, error = AbcToSvg(tune.abc, tune.header,
-                                                             self.cache_dir,
-                                                             self.settings,
-                                                             with_annotations=False,
-                                                             one_file_per_page=False)
-                        self.update_statusbar_and_messages()
-                        if svg_files:
-                            for j, fn in enumerate(svg_files):
-                                zip.write(fn, 'OEBPS/Contents/tune%.2d_page%.2d.svg' % (i+1, j+1))
-                    f.write('</body></html>')
-                    zip.close()
-                    self.SetCursor(wx.STANDARD_CURSOR)
-                    #launch_file(path)
-            finally:
-                dlg.Destroy() # 1.3.6.3 [JWDJ] 2015-04-21 always clean up dialog window
 
     def copy_to_destination_and_launch_file(self, file_name, destination_path):
         try:
@@ -6350,12 +5651,7 @@ class MainFrame(wx.Frame):
             (_('Export to &one PDF...'), '', self.OnExportSelectedToSinglePDF, self.add_to_multi_list),
             (_('Export to &SVG...'), '', self.OnExportSVG),
             (_('Export to &HTML...'), '', self.OnExportHTML),
-            (_('Export to HTML (&interactive)...'), '', self.OnExportInteractiveHTML),
-            (_('Export to Music&XML...'), '', self.OnExportMusicXML),
             (_('Export to &ABC...'), '', self.OnExportToABC),
-            (_('Export to &Wave...'), '', self.OnExportToWave),
-            (_('Export to &MP3...'), '', self.OnExportToMP3),
-            (_('Export to &AAC...'), '', self.OnExportToAAC)
         ], parent=self)
 
         # global current_locale
@@ -6446,20 +5742,14 @@ class MainFrame(wx.Frame):
                     (_('as &MIDI...'), '', self.OnExportMidi),
                     (_('as &SVG...'), '', self.OnExportSVG),
                     (_('as &HTML...'), '', self.OnExportHTML),
-                    (_('as HTML (&interactive)...'), '', self.OnExportInteractiveHTML),
-                    (_('as Music&XML...'), '', self.OnExportMusicXML),
                     (_('as A&BC...'), '', self.OnExportToABC),
-                    (_('as &Wave...'), '', self.OnExportToWave),
-                    (_('as &MP3...'), '', self.OnExportToMP3),
-                    (_('as &AAC...'), '', self.OnExportToAAC)]),
+                    ]),
                 (_("Export &all"), [
                     (_('as a &PDF Book...'), '', self.OnExportAllPDF),
                     (_('as PDF &Files...'), '', self.OnExportAllPDFFiles),
                     (_('as &MIDI...'), '', self.OnExportAllMidi),
                     (_('as &HTML...'), '', self.OnExportAllHTML),
-                    (_('as HTML (&interactive)...'), '', self.OnExportAllInteractiveHTML),
-                    #(_('as &EPUB...'), '', self.OnExportAllEpub),
-                    (_('as Music&XML...'), '', self.OnExportAllMusicXML)]),
+                    ]),
                 (),
                 (_("&Save") + "\tCtrl+S", _("Save the active file"), self.OnSave),
                 (_("Save &As...") + "\tShift+Ctrl+S", _("Save the active file with a new filename"), self.OnSaveAs),
@@ -6469,8 +5759,10 @@ class MainFrame(wx.Frame):
                 (_("P&age Setup..."), _("Change the printer and printing options"), self.OnPageSetup),
                 (),
                 (_('&Recent files'), self.recent_menu, self.disable_in_exclusive_mode),
-                (),
-                (wx.ID_EXIT, _("&Quit") + "\tCtrl+Q", _("Exit the application (prompt to save files)"), self.OnQuit)]),
+                #lhh We already have a Quit menu item in the program menu
+                #lhh (),
+                #lhh(wx.ID_EXIT, _("&Quit") + "\tCtrl+Q", _("Exit the application (prompt to save files)"), self.OnQuit)
+                ]),
             (_("&Edit")     , [
                 (_("&Undo") + "\tCtrl+Z", _("Undo the last action"), self.OnUndo),
                 (_("&Redo") + "\tCtrl+Y", _("Redo the last action"), self.OnRedo),
@@ -6505,8 +5797,8 @@ class MainFrame(wx.Frame):
                 (_('&Clear cache') + '...', '', self.OnClearCache), #1.3.6.1 [SS] 2015-1-10 do not use 5003 (on Linux it will add Ctr-S shortcut)
                 (_('Cold &restart'), '', self.OnColdRestart)]), # 1.3.6.1 [SS] 2014-12-28
             (_("&Tools")    , [
-                (_('Generate &incipits file...'), '', self.OnGenerateIncipits),
-                (_('&View incipits...'), '', self.OnViewIncipits),
+                #lhh (_('Generate &incipits file...'), '', self.OnGenerateIncipits),
+                #lhh (_('&View incipits...'), '', self.OnViewIncipits),
                 (),
                 (_('&Renumber X: fields...'), '', self.OnRenumberTunes),
                 (_('&Sort tunes...'), '', self.OnSortTunes)]),
@@ -6520,16 +5812,16 @@ class MainFrame(wx.Frame):
             (_("&Help")     , [
                 (_("&Show fields and commands reference"), '', self.OnViewFieldReference),
                 (),
-                (_("&EasyABC Help"), _("Link to EasyABC Website"), self.OnEasyABCHelp),
+                (_("&EasyABCLite Help"), _("Link to EasyABC Website"), self.OnEasyABCHelp),
                 (_("&ABC Standard Version 2.1"), _("Link to the ABC Standard version 2.1"), self.OnABCStandard),
                 (_("&Learn ABC"), _("Link to the ABC notation website"), self.OnABCLearn),
                 (_("&Abcm2ps help"), _("Link to the Abcm2ps website"), self.OnAbcm2psHelp),
                 (_("&Abc2midi help"), _("Link to the Abc2midi website"), self.OnAbc2midiHelp),
                 (_("ABC &Quick Reference Card"), _("Link to a PDF with the most common ABC commands"), self.OnAbcCheatSheet),
                 (),
-                (_("&Check for update..."), _("Link to EasyABC download page"), self.OnCheckLastestVersion),
+                #lhh (_("&Check for update..."), _("Link to EasyABC download page"), self.OnCheckLastestVersion),
                 (),
-                (wx.ID_ABOUT, _("About EasyABC") + "...", '', self.OnAbout)
+                (wx.ID_ABOUT, _("About EasyABCLite") + "...", '', self.OnAbout)
             ]),
         ], parent=self)
 
@@ -8803,13 +8095,14 @@ class MainFrame(wx.Frame):
         for i, width in enumerate(self.settings.get('tune_col_widths', [37, 100])):
             self.tune_list.SetColumnWidth(i, width)
 
-        self.settings['record_bpm'] = self.settings.get('record_bpm', 70)
-        item = self.bpm_menu.FindItemById(self.bpm_menu.FindItem(str(self.settings['record_bpm'])))
-        item.Check()
+        #lhh - no recording 
+        # self.settings['record_bpm'] = self.settings.get('record_bpm', 70)
+        # item = self.bpm_menu.FindItemById(self.bpm_menu.FindItem(str(self.settings['record_bpm'])))
+        # item.Check()
 
-        self.settings['record_metre'] = self.settings.get('record_metre', '3/4')
-        item = self.metre_menu.FindItemById(self.metre_menu.FindItem(self.settings['record_metre']))
-        item.Check()
+        # self.settings['record_metre'] = self.settings.get('record_metre', '3/4')
+        # item = self.metre_menu.FindItemById(self.metre_menu.FindItem(self.settings['record_metre']))
+        # item.Check()
 
         # reset captions since this is ruined by LoadPerspective
         self.manager.GetPane('abc editor').Caption(_("ABC code"))
@@ -8855,84 +8148,46 @@ class MainFrame(wx.Frame):
     def restore_settings(self):
         settings = self.settings
 
+        #lhh abcm2ps
         abcm2ps_path = settings.get('abcm2ps_path')
-
         if not abcm2ps_path or not os.path.exists(abcm2ps_path):
             abcm2ps_path = get_default_path_for_executable('abcm2ps')
-
         if os.path.exists(abcm2ps_path):
             settings['abcm2ps_path'] = abcm2ps_path # 1.3.6 [SS] 2014-11-12
         else:
-            dlg = wx.MessageDialog(self, _('abcm2ps was not found here. You need it to view the music. Go to settings and indicate the path.'), _('Warning'), wx.OK)
+            dlg = wx.MessageDialog(self, _('abcm2ps was not found here. Go to settings and indicate the path.'), _('Warning'), wx.OK)
             dlg.ShowModal()
 
+        #lhh abcmidi
         abc2midi_path = settings.get('abc2midi_path', '')
-
         if not abc2midi_path or not os.path.exists(abc2midi_path):
             abc2midi_path = get_default_path_for_executable('abc2midi')
-
         if os.path.exists(abc2midi_path):
             settings['abc2midi_path'] = abc2midi_path # 1.3.6 [SS] 2014-11-12
         else:
-            dlg = wx.MessageDialog(self, _('abc2midi was not found here. You need it to play the music. Go to settings and indicate the path.'), _('Warning'), wx.OK)
+            dlg = wx.MessageDialog(self, _('abc2midi was not found here. Go to settings and indicate the path.'), _('Warning'), wx.OK)
             dlg.ShowModal()
 
-        midi2abc_path = settings.get('midi2abc_path')
-
-        #1.3.6.4 [SS] 2015-06-22
-        if not midi2abc_path or not os.path.exists(midi2abc_path):
-            midi2abc_path = get_default_path_for_executable('midi2abc')
-
-        if os.path.exists(midi2abc_path):
-            settings['midi2abc_path'] = midi2abc_path
-        else:
-            dlg = wx.MessageDialog(self, _('midi2abc was not found here. You need it to play the music. Go to settings and indicate the path.'), _('Warning'), wx.OK)
-            dlg.ShowModal()
-
+        #lhh acbc2abc
         abc2abc_path = settings.get('abc2abc_path')
-
         if not abc2abc_path or not os.path.exists(abc2abc_path):
             abc2abc_path = get_default_path_for_executable('abc2abc')
-
         if os.path.exists(abc2abc_path):
             settings['abc2abc_path'] = abc2abc_path # 1.3.6 [SS] 2014-11-12
         else:
-            # print('%s ***  not found ***' % abc2abc_path)
-            dlg = wx.MessageDialog(self, _('abc2abc was not found here. You need it to transpose the music. Go to settings and indicate the path.'), _('Warning'), wx.OK)
+            dlg = wx.MessageDialog(self, _('abc2abc was not found here. Go to settings and indicate the path.'), _('Warning'), wx.OK)
             dlg.ShowModal()
 
-        midiplayer_path = settings.get('midiplayer_path')
-        if not midiplayer_path:
-            settings['midiplayer_path'] = ''
-        else:
-            # 1.3.6.4 [SS] 2015-05-27
-            if not os.path.exists(midiplayer_path):
-                dlg = wx.MessageDialog(self, _('The midiplayer was not found. You will not be able to play the MIDI file.'), _('Warning'), wx.OK)
-                dlg.ShowModal()
-
+        #lhh ps2pdf
+        #TODO: rename 'gs' and 'gs_path' to 'ps2pdf' and 'ps2pdf_path'
         gs_path = settings.get('gs_path')
-        # 1.3.6.1 [SS] 2015-01-28
-
-        if not gs_path:
-            if wx.Platform == "__WXMSW__":
-                gs_path = get_ghostscript_path()
-                settings['gs_path'] = gs_path
-            #FAU:PDF:pstopdf is not provided by Apple starting from MacOS Sonoma. So in any case look for ghostscript and use /usr/bin/pstopdf only if Mac OS version earlier than Sonoma.
-            #elif wx.Platform == '__WXGTK__':
-            else:
-                try:
-                    gs_path = subprocess.check_output(["which", "gs"])
-                    settings['gs_path'] = gs_path[0:-1].decode()
-                except:
-                    if wx.Platform == "__WXMAC__" and int(platform.mac_ver()[0].split('.')[0]) <= 13:
-                        settings['gs_path'] = '/usr/bin/pstopdf'
-                    else:
-                        settings['gs_path'] = ''
-            #1.3.6.1 [SS] 2014-01-13
-            #FAU:PDF:pstopdf is not provided by Apple starting from MacOS Sonoma. So merge with Ghostscript in case ghostscript is installed
-            #elif wx.Platform == "__WXMAC__":
-            #    gs_path = '/usr/bin/pstopdf'
-            #    settings['gs_path'] = gs_path
+        if not gs_path or not os.path.exists(gs_path):
+            gs_path = get_default_path_for_executable('ps2pdf')
+        if os.path.exists(gs_path):
+            settings['gs_path'] = gs_path 
+        else:
+            dlg = wx.MessageDialog(self, _('ps2pdf was not found here. Go to settings and indicate the path.'), _('Warning'), wx.OK)
+            dlg.ShowModal()
 
         # 1.3.6.1 [SS] 2015-01-12 2015-01-22
         gs_path = settings['gs_path'] #eliminate trailing \n
@@ -9072,7 +8327,6 @@ an open source ABC editor for Windows, OSX and Linux. It is published under the 
   <li> ABC fields in the file header are applied to every single tune in a tune book.
   <li> Automatic alignment of bars on different lines
   <li> Available in <img src="img/new.gif"/>German, Dutch, Italian, French, Danish, Swedish, German and English</li>
-  <li> Functions to generate incipits, sort tunes and renumber X: fields.</li>
   <li> Musical search function - search for note sequences irrespectively of key, etc. <img src="img/new.gif"/></li>
 </ul>
 
@@ -9108,7 +8362,7 @@ an open source ABC editor for Windows, OSX and Linux. It is published under the 
 '''.format(program_name)
 
     def __init__(self, parent):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, _('About EasyABC'), size=(900, 600) )
+        wx.Dialog.__init__(self, parent, wx.ID_ANY, _('About EasyABCLite'), size=(900, 600) )
         about_html = wx.html.HtmlWindow(self, -1)
         about_html.SetPage(self.htmlpage)
         button = wx.Button(self, wx.ID_OK, _('&Ok'))
@@ -9341,7 +8595,7 @@ class MyApp(wx.App):
 
     def OnInit(self):
         try:
-            self.SetAppName('EasyABC')
+            self.SetAppName('EasyABCLite')
             #wx.SystemOptions.SetOptionInt('msw.window.no-clip-children', 1)
             app_dir = self.app_dir = wx.StandardPaths.Get().GetUserLocalDataDir()
             if not os.path.exists(app_dir):

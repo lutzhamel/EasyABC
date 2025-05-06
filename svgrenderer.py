@@ -905,7 +905,7 @@ class SvgRenderer(object):
 
 class MyApp(wx.App):
     def OnInit(self):
-        self.SetAppName('EasyABC')
+        self.SetAppName('EasyABCLite')
         return True
 
 def matrix_to_str(m):

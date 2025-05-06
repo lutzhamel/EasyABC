@@ -1973,7 +1973,7 @@ class AbcFileSettingsFrame(wx.Panel):
                 if setting_name in self.settings:
                     del self.settings[setting_name] # 1.3.6.3 [JWDJ] clean up unwanted paths
 
-            frame = app._frames[0]
+            frame = app.frame
             frame.restore_settings()
             frame.settingsbook.Show(False)
             frame.settingsbook.Destroy()
@@ -3703,7 +3703,7 @@ class SearchFilesThread(threading.Thread):
 
 
 class MainFrame(wx.Frame):
-    def __init__(self, parent, ID, app_dir, settings, options):
+    def __init__(self, parent, ID, app_dir, settings):
         wx.Frame.__init__(self, parent, ID, '%s - %s %s' % (program_name, _('Untitled'), 1),
                          wx.DefaultPosition, wx.Size(900, 850))
         #_icon = wx.EmptyIcon()
@@ -3729,7 +3729,6 @@ class MainFrame(wx.Frame):
         self.app_dir = app_dir
         self.cache_dir = os.path.join(self.app_dir, 'cache')
         self.settings_file = os.path.join(self.app_dir, 'settings1.3.dat')
-        self.exclusive_file_mode = options.get('exclusive', False)
         self._current_file = None
         self.untitled_number = 1
         self.author = ''
@@ -3772,15 +3771,6 @@ class MainFrame(wx.Frame):
 
         self.setup_menus()
         self.setup_toolbar()
-        self.mc = None
-
-        if platform.system() == 'Windows':
-            default_soundfont_path = os.environ.get('HOMEPATH', 'C:') + "\\SoundFonts\\FluidR3_GM.sf2"
-        else:
-            default_soundfont_path = '/usr/share/sounds/sf2/FluidR3_GM.sf2'
-
-        soundfont_path = settings.get('soundfont_path', default_soundfont_path)
-        self.uses_fluidsynth = False
         self.mc = None
                 
         #FAU:MIDIPLAY: on Mac add the ability to interface to System Midi Synth via mplay in case fluidsynth not available or not configured with soundfont
@@ -3924,7 +3914,9 @@ class MainFrame(wx.Frame):
 
         self.tune_list.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnRightClickList, self.tune_list)
 
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        #self.Bind(wx.EVT_CLOSE, self.OnClose)
+        #lhh
+        #print("bound EVT_CLOSE")
         self.Bind(EVT_RECORDSTOP, self.OnRecordStop)
         self.Bind(EVT_MUSIC_UPDATE_DONE, self.OnMusicUpdateDone)
         self.editor.Bind(wx.EVT_KEY_DOWN, self.OnUpdate)
@@ -4267,8 +4259,6 @@ class MainFrame(wx.Frame):
 
     def OnSettingsChanged(self):
         self.save_settings()
-        for frame in wx.GetApp().GetAllFrames():
-            frame.load_and_apply_settings()
 
     def OnToggleMusicPaneMaximize(self, evt):
         pane = self.manager.GetPane('tune preview')
@@ -5368,17 +5358,13 @@ class MainFrame(wx.Frame):
         return True
 
     def OnNew(self, evt=None):
+        self.OnCloseFile() # clears editor and resets current_file
         self.save_settings()
-        frame = wx.GetApp().NewMainFrame()
-        frame.Show(True)
-        # move new window slightly down to the right:
-        width, height = tuple(wx.DisplaySize())
-        x, y = self.GetPosition()
-        x, y = (x + 40) % (width - 200), (y + 40) % (height - 200)
-        frame.Move((x, y))
-        return frame
+        return self # return the empty frame
 
     def OnOpen(self, evt):
+        if not self.CanClose(): # try to save current file
+            return  
         wildcard = _("ABC file") + " (*.abc;*.txt;*.mcm)|*.abc;*.txt;*.mcm|" + \
                    _('Any file') + " (*.*)|*"
         dlg = wx.FileDialog(
@@ -5505,6 +5491,8 @@ class MainFrame(wx.Frame):
         return modal_result
 
     def save(self):
+        # reset the title with no asterisk
+        self.SetTitle('%s - %s' % (program_name, self.document_name))
         if self.current_file is None:
             self.save_as()
         else:
@@ -5539,6 +5527,8 @@ class MainFrame(wx.Frame):
             self.editor.SetSavePoint()
 
     def save_as(self, directory=None):
+        # reset the title with no asterisk
+        self.SetTitle('%s - %s' % (program_name, self.document_name))
         wildcard = _('ABC file') + " (*.abc)|*.abc"
         defaultDir = ''
         if self.current_file:
@@ -5730,11 +5720,11 @@ class MainFrame(wx.Frame):
 
         menuBar = create_menu_bar([
             (_("&File")     , [
-                (_('&New') + '\tCtrl+N', _("Create a new file"), self.OnNew, self.disable_in_exclusive_mode),
-                (_('&Open...') + '\tCtrl+O', _("Open an existing file"), self.OnOpen, self.disable_in_exclusive_mode),
-                (_("&Close") + '\tCtrl+W', _("Close the current file"), self.OnCloseFile, self.disable_in_exclusive_mode),
+                (_('&New') + '\tCtrl+N', _("Create a new file"), self.OnNew),
+                (_('&Open...') + '\tCtrl+O', _("Open an existing file"), self.OnOpen),
+                (_("&Close") + '\tCtrl+W', _("Close the current file"), self.OnCloseFile),
                 (),
-                (_("&Import and add..."), _("Import a song in ABC, Midi or MusicXML format and add it to the current document."), self.OnImport, self.disable_in_exclusive_mode),
+                (_("&Import and add..."), _("Import a song in ABC, Midi or MusicXML format and add it to the current document."), self.OnImport),
                 (),
                 (_("&Export selected"), [
                     (_('as &PDF...'), '', self.OnExportPDF),
@@ -5758,10 +5748,7 @@ class MainFrame(wx.Frame):
                 (_("&Print preview") + "\tCtrl+Shift+P", '', self.OnPrintPreview),
                 (_("P&age Setup..."), _("Change the printer and printing options"), self.OnPageSetup),
                 (),
-                (_('&Recent files'), self.recent_menu, self.disable_in_exclusive_mode),
-                #lhh We already have a Quit menu item in the program menu
-                #lhh (),
-                #lhh(wx.ID_EXIT, _("&Quit") + "\tCtrl+Q", _("Exit the application (prompt to save files)"), self.OnQuit)
+                (_('&Recent files'), self.recent_menu),
                 ]),
             (_("&Edit")     , [
                 (_("&Undo") + "\tCtrl+Z", _("Undo the last action"), self.OnUndo),
@@ -5784,7 +5771,7 @@ class MainFrame(wx.Frame):
                 (_("A&lign bars") + "\tCtrl+Shift+A", '', self.OnAlignBars),
                 (),
                 (_("&Find...") + "\tCtrl+F", '', self.OnFind),
-                (_("Find in Files") + '\tCtrl+Shift+F', '', self.OnSearchDirectories, self.disable_in_exclusive_mode), # 1.3.6 [SS] 2014-11-21
+                (_("Find in Files") + '\tCtrl+Shift+F', '', self.OnSearchDirectories), # 1.3.6 [SS] 2014-11-21
                 (_("Find &Next") + "\t"+("F3" if wx.Platform != '__WXMAC__' else "Ctrl+G"), '', self.OnFindNext),
                 (_("&Replace...") + "\t"+("Ctrl+H" if wx.Platform != "__WXMAC__" else "Alt+Ctrl+F"), '', self.OnReplace),
                 (),
@@ -5805,9 +5792,8 @@ class MainFrame(wx.Frame):
             (_("&View")     , view_menu),
             (_("&Internals"), [ #p09 [SS] 2014-10-22
                 (_("Messages"), _("Show warnings and errors"), self.OnShowMessages),
-                (_("Input processed tune"), '', self.OnShowAbcTune),
-                (_("List of Tunes"), '', self.OnShowTunesList),
-                (_("Output midi file"), '', self.OnShowMidiFile),
+                (_("Show last processed tune"), '', self.OnShowAbcTune),
+                (_("List of tunes"), '', self.OnShowTunesList),
                 (_("Show settings status"), '', self.OnShowSettings)]),
             (_("&Help")     , [
                 (_("&Show fields and commands reference"), '', self.OnViewFieldReference),
@@ -5832,10 +5818,6 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_FIND_REPLACE, self.OnFindReplace)
         self.Bind(wx.EVT_FIND_REPLACE_ALL, self.OnFindReplaceAll)
         self.Bind(wx.EVT_FIND_CLOSE, self.OnFindClose)
-
-    def disable_in_exclusive_mode(self, menu_item):
-        if self.exclusive_file_mode:
-            menu_item.Enable(False)
 
     def ShowMessages(self):
         global execmessages
@@ -5890,31 +5872,21 @@ class MainFrame(wx.Frame):
         # 1.3.6.1 [JWdJ] 2015-01-30 When messages window is lost it will be focused again
         self.ShowMessages()
 
-    #1.3.6.4 [SS] 2015-06-22
-    def OnShowMidiFile(self, evt):
-        midi2abc_path = self.settings['midi2abc_path']
-        if hasattr(self.current_midi_tune, 'midi_file'):
-            MidiToMftext(midi2abc_path, self.current_midi_tune.midi_file)
-        else:
-            wx.MessageBox(_("You need to create the midi file by playing the tune"), _("Error") , wx.ICON_ERROR | wx.OK)
-
-    def OnCloseFile(self, evt):
+    def OnCloseFile(self, evt=None):
         if self.CanClose():
             self.current_file = None
             self.untitled_number += 1
             self.new_tune()
             self.OnTuneSelected(None)
+            return True
+        else:
+            return False
 
     def OnSave(self, evt):
         self.save()
 
     def OnSaveAs(self, evt):
         self.save_as()
-
-    def OnQuit(self, evt):
-        for frame in wx.GetApp().GetAllFrames():
-            if not frame.Close():
-                break
 
     def do_command(self, cmd):
         self.editor.CmdKeyExecute(cmd)
@@ -5924,32 +5896,38 @@ class MainFrame(wx.Frame):
             return
         widget = self.FindFocus()
         widget.Undo()
+
     def OnRedo(self, evt):      #self.do_command(stc.STC_CMD_REDO)
         if self.tune_list.HasFocus():
             return
         widget = self.FindFocus()
         widget.Redo()
+
     def OnCut(self, evt):       #self.do_command(stc.STC_CMD_CUT)
         if self.tune_list.HasFocus():
             return
         widget = self.FindFocus()
         widget.Cut()
+
     def OnCopy(self, evt):      #self.do_command(stc.STC_CMD_COPY)
         if self.tune_list.HasFocus():
             self.OnExportToClipboard(evt)
         else:
             widget = self.FindFocus()
             widget.Copy()
+
     def OnPaste(self, evt):    #self.do_command(stc.STC_CMD_PASTE)
         if self.tune_list.HasFocus():
             return
         widget = self.FindFocus()
         widget.Paste()
+
     def OnDelete(self, evt):    #self.do_command(stc.STC_CMD_CLEAR)
         if self.tune_list.HasFocus():
             return
         widget = self.FindFocus()
         widget.Clear()
+
     def OnSelectAll(self, evt): #self.do_command(stc.STC_CMD_SELECTALL)
         if self.tune_list.HasFocus():
             for i in range(self.tune_list.GetItemCount()):
@@ -6206,9 +6184,6 @@ class MainFrame(wx.Frame):
         if 'font' in self.settings:
             del self.settings['font']
             self.save_settings()
-            for frame in wx.GetApp().GetAllFrames():
-                frame.load_and_apply_settings()
-                frame.InitEditor()
 
     def closestNoteData(self, page, row_offset, line, col):
         """Find the NoteData of the closest note to cursor position
@@ -7099,6 +7074,8 @@ class MainFrame(wx.Frame):
         event.Skip()
         if self.updating_text:
             return
+        # show that the document has been modified by adding a '*' to the title
+        self.SetTitle('%s - %s*' % (program_name, self.document_name))
         self.GrayUngray()
         # if auto-refresh is on
         if self.mni_auto_refresh.IsChecked():
@@ -7128,18 +7105,14 @@ class MainFrame(wx.Frame):
         else:
             evt.Skip()
 
-    def OnClose(self, evt):
-        if self.is_closed:
-            return
-        if not self.CanClose():
-            evt.Veto()
-            return
+    def cleanup(self):
+        #lhh
+        print('frame cleanup')
 
-        wx.GetApp().UnRegisterFrame(self)
         '''FAU 20201229: Need to stop the timer otherwise they could call back a routine that was destroyed and cause a segmentation fault on Mac'''
         self.play_timer.Stop()
         self.timer.Stop()
-        '''FAU 20201228: TODO: is it really what we want to do when multiple window?'''
+
         if wx.TheClipboard.Open():
             wx.TheClipboard.Flush()  # the text on the clipboard should be available after the app has closed
             wx.TheClipboard.Close()
@@ -7148,19 +7121,15 @@ class MainFrame(wx.Frame):
         if self.play_music_thread != None:
             self.play_music_thread.abort()
             self.play_music_thread = None
-        if self.record_thread != None:
-            self.record_thread.abort()
-            self.record_thread = None
 
         self.svg_tunes.cleanup()
         self.midi_tunes.cleanup()
+
+        # if the buffer is modified, ask the user if he/she wants to save it
+        self.CanClose()
+
         self.settings['is_maximized'] = self.IsMaximized()
-        self.Hide()
-        self.Iconize(False)  # the x,y pos of the window is not properly saved if it's minimized
         self.save_settings()
-        self.is_closed = True
-        self.manager.UnInit()
-        self.Destroy()
 
     def PlayMidi(self, remove_repeats=False):
         global execmessages # 1.3.6 [SS] 2014-11-11
@@ -8046,6 +8015,8 @@ class MainFrame(wx.Frame):
         self.refresh_tunes()
 
     def load_settings(self):
+        #lhh
+        print('load settings: {0}'.format(self.settings_file))
         try:
             settings = pickle.load(open(self.settings_file, 'rb'))
         except Exception:
@@ -8119,8 +8090,8 @@ class MainFrame(wx.Frame):
     def save_settings(self):
         settings = self.settings
         settings['zoom'] = self.editor.GetZoom()
-        settings['window_x'], settings['window_y'] = self.Position
-        settings['window_width'], settings['window_height'] = self.Size
+        (settings['window_x'], settings['window_y']) = self.Position
+        (settings['window_width'], settings['window_height']) = self.Size
         settings['perspective'] = self.manager.SavePerspective()
         settings['author'] = self.author
         settings['tempo'] = int(100.0 * self.get_tempo_multiplier()) # 1.3.6.4 [JWDJ] not really necessary since setting 'tempo' is not used anymore
@@ -8137,8 +8108,11 @@ class MainFrame(wx.Frame):
         self.settings['tune_col_widths'] = [self.tune_list.GetColumnWidth(i) for i in range(self.tune_list.GetColumnCount())]
 
         try:
+            print('save settings: {0}'.format(self.settings_file))
+            #lhh: TODO: use TOML to save settings
             pickle.dump(settings, open(self.settings_file, 'wb'))
         except IOError:
+            print('Error writing settings file: {0}'.format(self.settings_file))
             pass
 
 
@@ -8211,24 +8185,47 @@ class MainFrame(wx.Frame):
             pass
 
         # 1.3.6 [SS] 2014-12-18
-        new_settings = [('midi_program', default_midi_instrument), ('midi_chord_program', 24),
-                        ('transposition',0), ('tuning',440),
-                        ('nodynamics', False), ('nofermatas', False),
-                        ('nograce', False), ('barfly', True),
-                        ('searchfolder', self.app_dir), ('xmlcompressed', False),
-                        ('xmlunfold', False), ('xmlmidi', False), ('xml_v','0'), ('xml_d', '0'),
-                        ('xml_b','0'), ('xml_c', '0'), ('xml_n', '0'), ('xml_u', '0'),
-                        ('xml_p', ''),
-                        ('abcm2ps_number_bars', False), ('abcm2ps_no_lyrics', False),
-                        ('abcm2ps_refnumbers', False), ('abcm2ps_ignore_ends', False),
-                        ('abcm2ps_leftmargin', '1.78'), ('abcm2ps_rightmargin', '1.78'),
-                        ('abcm2ps_topmargin', '1.00'), ('abcm2ps_botmargin', '1.00'),
-                        ('abcm2ps_scale', '0.75'), ('abcm2ps_clean', False),
-                        ('abcm2ps_defaults', True), ('abcm2ps_pagewidth', '21.59'),
-                        ('abcm2ps_pageheight', '27.94'), ('midiplayer_parameters', ''),
-                        ('bpmtempo', 120), ('chordvol', default_midi_volume), ('bassvol', default_midi_volume),
-                        ('melodyvol', default_midi_volume), ('midi_intro', 0), ('version', program_version)
-                       ]
+        new_settings = [
+            ('midi_program', default_midi_instrument), 
+            ('midi_chord_program', 24),
+            ('transposition',0), 
+            ('tuning',440),
+            ('nodynamics', False), 
+            ('nofermatas', False),
+            ('nograce', False), 
+            ('barfly', True),
+            ('searchfolder', self.app_dir), 
+            ('xmlcompressed', False),
+            ('xmlunfold', False), 
+            ('xmlmidi', False), 
+            ('xml_v','0'), 
+            ('xml_d', '0'),
+            ('xml_b','0'), 
+            ('xml_c', '0'), 
+            ('xml_n', '0'), 
+            ('xml_u', '0'),
+            ('xml_p', ''),
+            ('abcm2ps_number_bars', False), 
+            ('abcm2ps_no_lyrics', False),
+            ('abcm2ps_refnumbers', False), 
+            ('abcm2ps_ignore_ends', False),
+            ('abcm2ps_leftmargin', '1.78'), 
+            ('abcm2ps_rightmargin', '1.78'),
+            ('abcm2ps_topmargin', '1.00'), 
+            ('abcm2ps_botmargin', '1.00'),
+            ('abcm2ps_scale', '0.75'), 
+            ('abcm2ps_clean', False),
+            ('abcm2ps_defaults', True), 
+            ('abcm2ps_pagewidth', '21.59'),
+            ('abcm2ps_pageheight', '27.94'), 
+            ('midiplayer_parameters', ''),
+            ('bpmtempo', 120), 
+            ('chordvol', default_midi_volume), 
+            ('bassvol', default_midi_volume),
+            ('melodyvol', default_midi_volume), 
+            ('midi_intro', 0), 
+            ('version', program_version)
+        ]
 
         # 1.3.6 [SS] 2014-12-16
         for item in new_settings:
@@ -8242,8 +8239,6 @@ class MainFrame(wx.Frame):
         self.settings['gchord'] = 'default' # 1.3.6 [SS] 2014-11-26
 
     def update_recent_files_menu(self):
-        if self.exclusive_file_mode:
-            return
         recent_files = self.settings.get('recentfiles', '').split('|')
         while self.recent_menu.MenuItemCount > 0:
             delete_menuitem(self.recent_menu, self.recent_menu.FindItemByPosition(0))
@@ -8487,44 +8482,9 @@ class MyAbcFrame(wx.Frame):
         if win is not None:
             win.ShowText(visible_abc_code)
 
-
-#1.3.6.4 [SS] 2015-06-22
-class MyMidiTextTree(wx.Frame):
-    def __init__(self,title):
-        wx.Frame.__init__(self, wx.GetApp().TopWindow, wx.ID_ANY, title, wx.DefaultPosition, wx.Size(450, 350))
-
-        hbox = wx.BoxSizer(wx.HORIZONTAL)
-        vbox = wx.BoxSizer(wx.VERTICAL)
-        panel1 = wx.Panel(self, -1)
-
-        self.tree = wx.TreeCtrl(panel1, 1, wx.DefaultPosition, (-1, -1), wx.TR_HAS_BUTTONS )
-        vbox.Add(self.tree, 1, wx.EXPAND)
-        hbox.Add(panel1, 1, wx.EXPAND)
-        panel1.SetSizer(vbox)
-        self.SetSizer(hbox)
-        self.Centre()
-
-    def LoadMidiData(self,data):
-        self.tree.DeleteAllItems()
-        tracknum = '0'
-        trk = {}
-        for line in data:
-            col = line.find('Track')
-            if col == 0:
-                words = line.split(' ')
-                tracknum = words[1]
-                trk[tracknum] = self.tree.AppendItem(self.root,line)
-            else:
-                if tracknum == '0':
-                    self.root = self.tree.AddRoot(line)
-                    continue
-                self.tree.AppendItem(trk[tracknum],line)
-        self.tree.Expand(self.root)
-
-
 class MyApp(wx.App):
     def __init__(self, *args, **kargs):
-        self._frames = []
+        self.frame = None
         self.settings = {}
         wx.App.__init__(self, *args, **kargs)
 
@@ -8546,53 +8506,6 @@ class MyApp(wx.App):
         except wx.PyAssertionError:
             self.settings['can_draw_sharps_and_flats'] = False
 
-
-    def NewMainFrame(self, options = None):
-        frame = MainFrame(None, 0, self.app_dir, self.settings, options or {})
-        self._frames.append(frame)
-        return frame
-
-    def UnRegisterFrame(self, frame):
-        self._frames.remove(frame)
-
-    def GetAllFrames(self):
-        L = self._frames[:]
-        L.sort(key=lambda f: not f.IsActive()) # make sure an active frame comes first in the list
-        return L
-
-    def MacOpenFile(self, filename):	# [EPO] 2018-11-20 TODO  dup open file creates two frames (why?)
-        """Called for files dropped on dock icon, or opened via finders context menu"""
-        #dlg = wx.MessageDialog(None,
-        #                       "This app was just asked to open:\n%s\n"%filename,
-        #                       "File Dropped",
-        #                       wx.OK|wx.ICON_INFORMATION)
-        #dlg.ShowModal()
-        #dlg.Destroy()
-        #frame = self.NewMainFrame()
-        #frame.Show(True)
-        #self.SetTopWindow(frame)
-        ##path = os.path.abspath(sys.argv[1]).decode(sys.getfilesystemencoding())
-        #self.frame.load_or_import(filename)
-        if not self.frame.editor.GetModify() and not self.frame.current_file:     # if a new unmodified document
-            self.frame.load(filename)
-        else:
-            self.frame = self.NewMainFrame()
-            self.frame.load(filename)
-            
-    def MacNewFile(self):
-        #dlg = wx.MessageDialog(None,
-        #                       "This app was just asked to launch",
-        #                       "App started",
-        #                       wx.OK|wx.ICON_INFORMATION)
-        #dlg.ShowModal()
-        #dlg.Destroy()
-        recent_file = self.settings.get('recentfiles', '').split('|')[0]
-        if recent_file and os.path.exists(recent_file):
-            path = recent_file
-
-        if path :
-            self.frame.load_or_import(path)
-
     def OnInit(self):
         try:
             self.SetAppName('EasyABCLite')
@@ -8603,40 +8516,20 @@ class MyApp(wx.App):
             cache_dir = os.path.join(app_dir, 'cache')
             if not os.path.exists(cache_dir):
                 os.mkdir(cache_dir)
-            default_lang = wx.LANGUAGE_DEFAULT
-            locale = wx.Locale(language=default_lang)
-            locale.AddCatalogLookupPathPrefix(os.path.join(cwd, 'locale'))
-            locale.AddCatalog('easyabc')
-            self.locale = locale # keep this reference alive
-            global current_locale
-            current_locale = locale
+            #lhh no localization
+            #default_lang = wx.LANGUAGE_DEFAULT
+            #locale = wx.Locale(language=default_lang)
+            #locale.AddCatalogLookupPathPrefix(os.path.join(cwd, 'locale'))
+            #locale.AddCatalog('easyabc')
+            #self.locale = locale # keep this reference alive
+            #global current_locale
+            #current_locale = locale
             wx.ToolTip.Enable(True)
             wx.ToolTip.SetDelay(1000)
-
-            self.CheckCanDrawSharpFlat()
-            options = {}
-            
+            self.CheckCanDrawSharpFlat()            
             path = None
-            if len(sys.argv) > 1:
-                if sys.version_info >= (3,0,0): #FAU 20210101: In Python3 there isn't anymore the decode.
-                    args = sys.argv
-                else:
-                    fse = sys.getfilesystemencoding()
-                    args = [arg.decode(fse) for arg in sys.argv]
-
-                i = 0
-                while i < len(args):
-                    arg = args[i]
-                    i += 1
-                    if arg.startswith('-'):
-                        arg = arg[1:]
-                        if arg == 'exclusive':
-                            options[arg] = 'True'
-                    else:
-                        path = os.path.abspath(arg)
-
             #p08 We need to be able to find app.frame [SS] 2014-10-14
-            self.frame = self.NewMainFrame(options)
+            self.frame = MainFrame(None, 0, self.app_dir, self.settings)
             self.frame.Show(True)
             self.SetTopWindow(self.frame)
 
@@ -8652,6 +8545,12 @@ class MyApp(wx.App):
         except:
             sys.stdout.write(traceback.format_exc())
         return True
+    
+    def OnExit(self):
+        #lhh
+        print('OnExit')
+        self.frame.cleanup()
+        return True
 
 app = MyApp(0)
 
@@ -8660,6 +8559,6 @@ app = MyApp(0)
 
 app.MainLoop()
 application_running = False
-current_locale = None
+#lhh current_locale = None
 app = None
 

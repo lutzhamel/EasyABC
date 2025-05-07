@@ -5205,8 +5205,8 @@ class MainFrame(wx.Frame):
         else:
             remove_repeats = evt.ControlDown() or evt.CmdDown()
             # 1.3.6.3 [SS] 2015-05-04
-            if not self.settings['midiplayer_path']:
-                self.flip_tempobox(True)
+            #if not self.settings['midiplayer_path']:
+            #    self.flip_tempobox(True)
             self.bpm_slider.Enabled = self.mc.supports_tempo_change_while_playing
             #self.play_panel.Show(not self.settings['midiplayer_path']) # 1.3.6.2 [JWdJ] 2015-02
             # self.toolbar.Realize() # 1.3.6.3 [JWDJ] fixes toolbar repaint bug
@@ -7144,10 +7144,18 @@ class MainFrame(wx.Frame):
 
         tempo_multiplier = self.get_tempo_multiplier()
 
-        follow_score = not self.settings['midiplayer_path']
+        #lhh follow_score = not self.settings['midiplayer_path']
+        follow_score = False
         # 1.3.6 [SS] 2014-11-15 2014-12-08
-        self.current_midi_tune = AbcToMidi(abc, tune.header, self.cache_dir, self.settings, self.statusbar, tempo_multiplier, \
-            add_follow_score_markers=follow_score)
+        self.current_midi_tune = AbcToMidi(
+                    abc, 
+                    tune.header, 
+                    self.cache_dir, 
+                    self.settings, 
+                    self.statusbar, 
+                    tempo_multiplier, 
+                    add_follow_score_markers=follow_score
+                )
         self.applied_tempo_multiplier = tempo_multiplier
         # 1.3.7 [SS] 2016-01-05 in case abc2midi crashes
         midi_file = None
